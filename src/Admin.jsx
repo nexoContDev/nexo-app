@@ -266,7 +266,6 @@ export default function AdminApp() {
     await loadClientes();
     setBusy(false);
   };
-  };
 
   // Convidar por e-mail (método alternativo mais simples)
   const convidarCliente = async()=>{
