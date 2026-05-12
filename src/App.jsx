@@ -95,8 +95,8 @@ import { createClient } from "@supabase/supabase-js";
 // ══════════════════════════════════════════════════
 //  ⚠️  SUBSTITUA COM SEUS DADOS DO SUPABASE
 // ══════════════════════════════════════════════════
-const SUPABASE_URL = "https://wnwlzcjlgbdcktjhsigx.supabase.co/rest/v1/";
-const SUPABASE_KEY = "sb_publishable_P8RPn0LdATxcYkNvGgy6ag_dy_wN6wg";
+const SUPABASE_URL = "https://wnwlzcjlgbdcktjhsigx.supabase.co";
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indud2x6Y2psZ2JkY2t0amhzaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1ODk1MTMsImV4cCI6MjA5NDE2NTUxM30.1mvfIXexsCmFYec6CsbjNuKCiPN5NW2ZjsbtdtcHnZc";
 // ══════════════════════════════════════════════════
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
