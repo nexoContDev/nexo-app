@@ -214,8 +214,9 @@ export default function AdminApp() {
 
   const loadClientes = async()=>{
     const{data,error}=await sbAdmin.from("perfis").select("*").order("criado_em",{ascending:false});
-    if(data) setClientes(data);
-    else console.error("Erro loadClientes:", error?.message);
+    if(data && data.length > 0) setClientes(data);
+    else if(error) console.error("Erro loadClientes:", error?.message);
+    else setClientes([]);
   };
 
   const loadDocs = async()=>{
@@ -803,10 +804,10 @@ export default function AdminApp() {
               <div><label>E-mail do cliente *</label><input className="inp" value={fCliente.email} onChange={e=>setFCliente(p=>({...p,email:e.target.value}))} placeholder="cliente@empresa.com"/></div>
               <div><label>Senha de acesso *</label><input className="inp" type="password" value={fCliente.senha} onChange={e=>setFCliente(p=>({...p,senha:e.target.value}))} placeholder="Mínimo 6 caracteres"/></div>
               <div style={{background:"rgba(255,255,255,.04)",borderRadius:10,padding:"10px 14px",fontSize:12,color:C.muted}}>
-                💡 O cliente receberá acesso ao portal com este e-mail e senha.
+                💡 O cliente terá acesso ao portal com este e-mail e senha. Nenhum e-mail será enviado.
               </div>
               <div style={{display:"flex",gap:8,marginTop:4}}>
-                <button className="btn blue lg" onClick={convidarCliente} disabled={busy} style={{flex:1,justifyContent:"center"}}>
+                <button className="btn blue lg" onClick={criarCliente} disabled={busy} style={{flex:1,justifyContent:"center"}}>
                   {busy?"Criando…":"✓ Criar Cliente"}
                 </button>
                 <button className="btn ghost" onClick={()=>setModalNovoCliente(false)}>Cancelar</button>
