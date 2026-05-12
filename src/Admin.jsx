@@ -31,8 +31,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ══════════════════════════════════════════════════
-const SUPABASE_URL  = "https://SEU-PROJETO.supabase.co";
-const SUPABASE_KEY  = "SUA-ANON-KEY";
+const SUPABASE_URL  = "https://wnwlzcjlgbdcktjhsigx.supabase.co/rest/v1/";
+const SUPABASE_KEY  = "sb_publishable_P8RPn0LdATxcYkNvGgy6ag_dy_wN6wg";
 const ASAAS_KEY     = "SUA-CHAVE-ASAAS";        // $aact_... (sandbox) ou $aas_... (produção)
 const ASAAS_BASE    = "https://sandbox.asaas.com/api/v3"; // troque por api.asaas.com em produção
 // ══════════════════════════════════════════════════
