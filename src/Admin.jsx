@@ -31,13 +31,15 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 // ══════════════════════════════════════════════════
-const SUPABASE_URL  = "https://wnwlzcjlgbdcktjhsigx.supabase.co";
-const SUPABASE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indud2x6Y2psZ2JkY2t0amhzaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1ODk1MTMsImV4cCI6MjA5NDE2NTUxM30.1mvfIXexsCmFYec6CsbjNuKCiPN5NW2ZjsbtdtcHnZc";
-const ASAAS_KEY     = "SUA-CHAVE-ASAAS";        // $aact_... (sandbox) ou $aas_... (produção)
-const ASAAS_BASE    = "https://sandbox.asaas.com/api/v3"; // troque por api.asaas.com em produção
+const SUPABASE_URL          = "https://wnwlzcjlgbdcktjhsigx.supabase.co";
+const SUPABASE_KEY          = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indud2x6Y2psZ2JkY2t0amhzaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1ODk1MTMsImV4cCI6MjA5NDE2NTUxM30.1mvfIXexsCmFYec6CsbjNuKCiPN5NW2ZjsbtdtcHnZc";
+const SUPABASE_SERVICE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indud2x6Y2psZ2JkY2t0amhzaWd4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4OTUxMywiZXhwIjoyMDk0MTY1NTEzfQ.rhSPyjGeTsnDv1uWIqpb9Cd9_dXTQodiG87Z8Jug60A"; // Project Settings → API → service_role
+const ASAAS_KEY             = "SUA-CHAVE-ASAAS";     // $aact_... (sandbox) ou $aas_... (produção)
+const ASAAS_BASE            = "https://sandbox.asaas.com/api/v3"; // troque por api.asaas.com em produção
 // ══════════════════════════════════════════════════
 
-const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
+const sb      = createClient(SUPABASE_URL, SUPABASE_KEY);
+const sbAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // ── Paleta NEXO ───────────────────────────────────
 const C = {
@@ -211,13 +213,9 @@ export default function AdminApp() {
   };
 
   const loadClientes = async()=>{
-    const{data}=await sb.from("perfis").select("*").order("criado_em",{ascending:false});
+    const{data,error}=await sbAdmin.from("perfis").select("*").order("criado_em",{ascending:false});
     if(data) setClientes(data);
-    else {
-      // Fallback: busca usuários auth
-      const{data:users}=await sb.auth.admin?.listUsers() || {data:null};
-      if(users) setClientes(users.users||[]);
-    }
+    else console.error("Erro loadClientes:", error?.message);
   };
 
   const loadDocs = async()=>{
@@ -239,33 +237,35 @@ export default function AdminApp() {
   const criarCliente = async()=>{
     if(!fCliente.email||!fCliente.senha){ showToast("Preencha e-mail e senha","err"); return; }
     setBusy(true);
-    const{data,error}=await sb.auth.admin?.createUser({
+
+    // 1. Cria usuário usando service_role (e-mail já confirmado automaticamente)
+    const{data,error}=await sbAdmin.auth.admin.createUser({
       email: fCliente.email,
       password: fCliente.senha,
       email_confirm: true,
-    }) || {data:null,error:{message:"Use Supabase Dashboard para criar usuários"}};
+    });
 
-    if(error){
-      // Alternativa: convite por e-mail
-      const{error:e2}=await sb.auth.signUp({email:fCliente.email,password:fCliente.senha});
-      if(e2){ showToast("Erro: "+e2.message,"err"); setBusy(false); return; }
+    if(error||!data?.user){
+      showToast("Erro ao criar usuário: "+(error?.message||"tente novamente"),"err");
+      setBusy(false); return;
     }
 
-    // Salvar perfil
-    if(data?.user || !error){
-      await sb.from("perfis").upsert({
-        id: data?.user?.id || crypto.randomUUID(),
-        nome_empresa: fCliente.nome,
-        cnpj: fCliente.cnpj,
-        email: fCliente.email,
-      });
-    }
+    // 2. Salva perfil com o UUID real do usuário criado
+    const{error:pe}=await sbAdmin.from("perfis").insert({
+      id: data.user.id,
+      nome_empresa: fCliente.nome||"",
+      cnpj: fCliente.cnpj||"",
+      email: fCliente.email,
+    });
 
-    showToast(`Cliente ${fCliente.email} criado!`);
+    if(pe) showToast("Usuário criado, mas erro ao salvar perfil: "+pe.message,"err");
+    else showToast(`✅ Cliente ${fCliente.email} criado com sucesso!`);
+
     setModalNovoCliente(false);
     setFCliente({nome:"",email:"",cnpj:"",senha:""});
     await loadClientes();
     setBusy(false);
+  };
   };
 
   // Convidar por e-mail (método alternativo mais simples)
