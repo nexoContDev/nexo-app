@@ -1,95 +1,7 @@
 /**
- * ╔══════════════════════════════════════════════════════════════╗
- * ║           NEXO Portal do Cliente — Versão Completa          ║
- * ╠══════════════════════════════════════════════════════════════╣
- * ║  COMO COLOCAR NO AR (sem programador):                       ║
- * ║                                                              ║
- * ║  1. SUPABASE (banco de dados + login + arquivos):            ║
- * ║     → Acesse https://supabase.com e crie conta grátis        ║
- * ║     → Crie um novo projeto                                   ║
- * ║     → Em "Project Settings > API" copie:                     ║
- * ║        • Project URL  → cole em SUPABASE_URL abaixo          ║
- * ║        • anon/public  → cole em SUPABASE_KEY abaixo          ║
- * ║     → Em "Storage" crie um bucket chamado: documentos        ║
- * ║     → Em "SQL Editor" rode o SQL do bloco mais abaixo        ║
- * ║                                                              ║
- * ║  2. VERCEL (hospedagem grátis):                              ║
- * ║     → Acesse https://vercel.com e crie conta com GitHub      ║
- * ║     → Suba este projeto no GitHub (ou use vercel deploy)     ║
- * ║     → Conecte o repositório no Vercel → Deploy automático    ║
- * ║                                                              ║
- * ║  3. DOMÍNIO (opcional):                                      ║
- * ║     → Compre portalnexo.com.br no Registro.br (~R$40/ano)    ║
- * ║     → Configure DNS apontando para o Vercel                  ║
- * ╚══════════════════════════════════════════════════════════════╝
- *
- * SQL PARA RODAR NO SUPABASE (SQL Editor):
- * ─────────────────────────────────────────
- * -- Tabela de perfis dos clientes
- * create table perfis (
- *   id uuid references auth.users(id) primary key,
- *   nome_empresa text,
- *   cnpj text,
- *   contador text default 'Dr. Marcos Oliveira',
- *   criado_em timestamptz default now()
- * );
- * alter table perfis enable row level security;
- * create policy "ver proprio perfil" on perfis for select using (auth.uid()=id);
- * create policy "atualizar proprio perfil" on perfis for update using (auth.uid()=id);
- *
- * -- Tabela de documentos
- * create table documentos (
- *   id uuid default gen_random_uuid() primary key,
- *   usuario_id uuid references auth.users(id),
- *   nome text not null,
- *   categoria text not null,
- *   storage_path text not null,
- *   tamanho bigint,
- *   criado_em timestamptz default now()
- * );
- * alter table documentos enable row level security;
- * create policy "ver docs" on documentos for select using (auth.uid()=usuario_id);
- * create policy "inserir docs" on documentos for insert with check (auth.uid()=usuario_id);
- * create policy "deletar docs" on documentos for delete using (auth.uid()=usuario_id);
- *
- * -- Tabela de guias de impostos
- * create table guias (
- *   id uuid default gen_random_uuid() primary key,
- *   usuario_id uuid references auth.users(id),
- *   tipo text not null,
- *   vencimento date,
- *   valor numeric,
- *   status text default 'pendente',
- *   storage_path text,
- *   criado_em timestamptz default now()
- * );
- * alter table guias enable row level security;
- * create policy "ver guias" on guias for select using (auth.uid()=usuario_id);
- *
- * -- Tabela de boletos
- * create table boletos (
- *   id uuid default gen_random_uuid() primary key,
- *   usuario_id uuid references auth.users(id),
- *   competencia text,
- *   vencimento date,
- *   valor numeric,
- *   linha_digitavel text,
- *   status text default 'pendente',
- *   criado_em timestamptz default now()
- * );
- * alter table boletos enable row level security;
- * create policy "ver boletos" on boletos for select using (auth.uid()=usuario_id);
- *
- * -- Storage policy (bucket "documentos")
- * create policy "upload proprio" on storage.objects for insert
- *   with check (bucket_id='documentos' and auth.uid()::text = (storage.foldername(name))[1]);
- * create policy "download proprio" on storage.objects for select
- *   using (bucket_id='documentos' and auth.uid()::text = (storage.foldername(name))[1]);
- * create policy "deletar proprio" on storage.objects for delete
- *   using (bucket_id='documentos' and auth.uid()::text = (storage.foldername(name))[1]);
-
-
- import { useState, useEffect, useRef, useCallback } from "react";
+ * NEXO Portal do Cliente - Versao Completa
+ * Configure SUPABASE_URL e SUPABASE_KEY com seus dados
+ */
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://wnwlzcjlgbdcktjhsigx.supabase.co";
@@ -212,7 +124,7 @@ const CSS = `
 export default function App() {
   const [session,    setSession]    = useState(null);
   const [booting,    setBooting]    = useState(true);
-  const [tab,        setTab]        = useState("boleto"); // começa em Mensalidade
+  const [tab,        setTab]        = useState("boleto"); // comea em Mensalidade
 
   // auth
   const [email,      setEmail]      = useState("");
@@ -260,7 +172,7 @@ export default function App() {
     setTimeout(()=>setToast(null), 3200);
   },[]);
 
-  // ── Auth ──────────────────────────────────────────────────────────────
+  //  Auth 
   useEffect(()=>{
     sb.auth.getSession().then(({data})=>{setSession(data.session);setBooting(false)});
     const {data:{subscription}} = sb.auth.onAuthStateChange((_,s)=>setSession(s));
@@ -287,7 +199,7 @@ export default function App() {
     setAuthBusy(false);
   };
 
-  // ── Alterar senha ─────────────────────────────────────────────────────
+  //  Alterar senha 
   const alterarSenha = async()=>{
     setSenhaErr(""); setSenhaMsg("");
     if(!senhaAtual||!senhaNova||!senhaConfirm){ setSenhaErr("Preencha todos os campos."); return; }
@@ -308,7 +220,7 @@ export default function App() {
     setSenhaBusy(false);
   };
 
-  // ── Documentos ────────────────────────────────────────────────────────
+  //  Documentos 
   const fetchDocs = async()=>{
     setDocsLoad(true);
     const{data,error}=await sb.from("documentos").select("*").order("criado_em",{ascending:false});
@@ -366,7 +278,7 @@ export default function App() {
     return mc&&mq;
   });
 
-  // ── Guias ─────────────────────────────────────────────────────────────
+  //  Guias 
   const fetchGuias = async()=>{
     setGuiasLoad(true);
     const{data}=await sb.from("guias").select("*").order("vencimento",{ascending:true});
@@ -394,7 +306,7 @@ export default function App() {
     setDlGuiaId(null);
   };
 
-  // ── Boleto ────────────────────────────────────────────────────────────
+  //  Boleto 
   const fetchBoleto = async()=>{
     setBoletoLoad(true);
     const{data}=await sb.from("boletos").select("*").order("criado_em",{ascending:false}).limit(1);
@@ -420,7 +332,7 @@ export default function App() {
     showToast("Código copiado!");
   };
 
-  // ══════════════════════════════════════════════════════════════════════
+  // 
   if(booting) return(
     <div style={{minHeight:"100vh",background:C.navy,display:"flex",alignItems:"center",justifyContent:"center"}}>
       <style>{CSS}</style>
@@ -430,7 +342,7 @@ export default function App() {
     </div>
   );
 
-  // ── LOGIN ─────────────────────────────────────────────────────────────
+  //  LOGIN 
   if(!session) return(
     <div style={{
       minHeight:"100vh",background:C.navy,
@@ -499,7 +411,7 @@ export default function App() {
     </div>
   );
 
-  // ── DASHBOARD ─────────────────────────────────────────────────────────
+  //  DASHBOARD 
   return(
     <div style={{minHeight:"100vh",background:C.navy,
                  backgroundImage:`radial-gradient(ellipse at 0% 0%,rgba(47,127,212,.07) 0%,transparent 50%)`}}>
@@ -574,7 +486,7 @@ export default function App() {
           ))}
         </div>
 
-        {/* ═══ MENSALIDADE (BOLETO) ═══ */}
+        {/*  MENSALIDADE (BOLETO)  */}
         {tab==="boleto"&&(
           <div className="fade">
             <div className="card">
@@ -651,7 +563,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══ DOCUMENTOS ═══ */}
+        {/*  DOCUMENTOS  */}
         {tab==="documentos"&&(
           <div className="fade">
             <div className="card" style={{marginBottom:16}}>
@@ -756,7 +668,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══ GUIAS ═══ */}
+        {/*  GUIAS  */}
         {tab==="guias"&&(
           <div className="fade" style={{display:"flex",flexDirection:"column",gap:10}}>
             {guiasLoad?(
@@ -785,7 +697,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══ RELATÓRIOS ═══ */}
+        {/*  RELATRIOS  */}
         {tab==="relatorios"&&(
           <div className="fade">
             <div className="card" style={{marginBottom:14}}>
@@ -822,7 +734,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══ MEU PERFIL ═══ */}
+        {/*  MEU PERFIL  */}
         {tab==="perfil"&&(
           <div className="fade">
             {/* Info da conta */}
