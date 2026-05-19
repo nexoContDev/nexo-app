@@ -167,14 +167,17 @@ export default function AdminApp() {
 
   // modals
   const [modalNovoCliente,  setModalNovoCliente]  = useState(false);
+  const [modalEditCliente,  setModalEditCliente]  = useState(false);
   const [modalUploadDoc,    setModalUploadDoc]    = useState(false);
   const [modalNovoBoleto,   setModalNovoBoleto]   = useState(false);
   const [modalNovaGuia,     setModalNovaGuia]     = useState(false);
 
   // forms
-  const [fCliente,  setFCliente]  = useState({nome:"",email:"",cnpj:"",senha:""});
+  const [fCliente,     setFCliente]     = useState({nome:"",email:"",cnpj:"",senha:""});
+  const [fEditCliente, setFEditCliente] = useState({id:"",nome_empresa:"",cnpj:"",email:"",senha_nova:""});
   const [fDoc,      setFDoc]      = useState({cliente_id:"",categoria:"Fiscal",arquivo:null});
-  const [fBoleto,   setFBoleto]   = useState({cliente_id:"",competencia:"",vencimento:"",valor:"",descricao:""});
+  const [fBoleto,   setFBoleto]   = useState({cliente_id:"",competencia:"",vencimento:"",valor:"",linha_digitavel:"",arquivo:null});
+  const boletoFileRef = useRef();
   const [fGuia,     setFGuia]     = useState({cliente_id:"",tipo:"DAS – Simples Nacional",vencimento:"",valor:"",arquivo:null});
 
   const [uploading, setUploading] = useState(false);
@@ -220,17 +223,17 @@ export default function AdminApp() {
   };
 
   const loadDocs = async()=>{
-    const{data}=await sb.from("documentos").select("*").order("criado_em",{ascending:false});
+    const{data}=await sbAdmin.from("documentos").select("*").order("criado_em",{ascending:false});
     if(data) setDocs(data);
   };
 
   const loadBoletos = async()=>{
-    const{data}=await sb.from("boletos").select("*").order("criado_em",{ascending:false});
+    const{data}=await sbAdmin.from("boletos").select("*").order("criado_em",{ascending:false});
     if(data) setBoletos(data);
   };
 
   const loadGuias = async()=>{
-    const{data}=await sb.from("guias").select("*").order("criado_em",{ascending:false});
+    const{data}=await sbAdmin.from("guias").select("*").order("criado_em",{ascending:false});
     if(data) setGuias(data);
   };
 
@@ -268,25 +271,6 @@ export default function AdminApp() {
     setBusy(false);
   };
 
-  // Convidar por e-mail (método alternativo mais simples)
-  const convidarCliente = async()=>{
-    if(!fCliente.email){ showToast("Preencha o e-mail","err"); return; }
-    setBusy(true);
-    // Cria usuário com senha temporária e envia e-mail
-    const tmpSenha = fCliente.senha || Math.random().toString(36).slice(-10)+"A1!";
-    const{error}=await sb.auth.signUp({
-      email: fCliente.email,
-      password: tmpSenha,
-      options:{ data:{ nome_empresa: fCliente.nome, cnpj: fCliente.cnpj } }
-    });
-    if(error){ showToast("Erro: "+error.message,"err"); setBusy(false); return; }
-    showToast(`Convite enviado para ${fCliente.email}!`);
-    setModalNovoCliente(false);
-    setFCliente({nome:"",email:"",cnpj:"",senha:""});
-    await loadClientes();
-    setBusy(false);
-  };
-
   // ── Upload documento ──────────────────────────────────────────────────
   const uploadDocumento = async()=>{
     if(!fDoc.arquivo||!fDoc.cliente_id){ showToast("Selecione o cliente e o arquivo","err"); return; }
@@ -294,10 +278,10 @@ export default function AdminApp() {
     const f = fDoc.arquivo;
     const path = `${fDoc.cliente_id}/${Date.now()}_${f.name}`;
     const iv = setInterval(()=>setUpPct(p=>Math.min(p+12,88)),200);
-    const{error:se}=await sb.storage.from("documentos").upload(path,f,{upsert:false});
+    const{error:se}=await sbAdmin.storage.from("documentos").upload(path,f,{upsert:false});
     clearInterval(iv);
     if(se){ showToast("Erro no upload: "+se.message,"err"); setUploading(false); return; }
-    const{error:de}=await sb.from("documentos").insert({
+    const{error:de}=await sbAdmin.from("documentos").insert({
       nome: f.name, categoria: fDoc.categoria,
       storage_path: path, tamanho: f.size,
       usuario_id: fDoc.cliente_id,
@@ -311,71 +295,75 @@ export default function AdminApp() {
     await loadDocs();
   };
 
-  // ── Gerar boleto Asaas ────────────────────────────────────────────────
+  // ── Enviar boleto PDF ─────────────────────────────────────────────────
   const gerarBoleto = async()=>{
     if(!fBoleto.cliente_id||!fBoleto.valor||!fBoleto.vencimento){
-      showToast("Preencha todos os campos","err"); return;
+      showToast("Preencha todos os campos obrigatórios","err"); return;
     }
     setBusy(true);
+    let storagePath = null;
 
-    // Busca customer Asaas ou cria
-    const cliente = clientes.find(c=>c.id===fBoleto.cliente_id);
-
-    let asaasId = cliente?.asaas_id;
-    if(!asaasId){
-      try{
-        const res = await fetch(`${ASAAS_BASE}/customers`, {
-          method:"POST",
-          headers:{"Content-Type":"application/json","access_token":ASAAS_KEY},
-          body: JSON.stringify({
-            name: cliente?.nome_empresa||cliente?.email||"Cliente",
-            cpfCnpj: (cliente?.cnpj||"").replace(/\D/g,""),
-            email: cliente?.email,
-          })
-        });
-        const cData = await res.json();
-        asaasId = cData.id;
-        // Salva asaas_id no perfil
-        if(asaasId) await sb.from("perfis").update({asaas_id:asaasId}).eq("id",fBoleto.cliente_id);
-      } catch(e){ showToast("Erro ao conectar com Asaas. Verifique a chave API.","err"); setBusy(false); return; }
+    // Upload do PDF se fornecido
+    if(fBoleto.arquivo){
+      const f = fBoleto.arquivo;
+      const path = `${fBoleto.cliente_id}/boletos/${Date.now()}_${f.name}`;
+      const{error:se}=await sbAdmin.storage.from("documentos").upload(path,f,{upsert:false});
+      if(se){ showToast("Erro no upload do PDF: "+se.message,"err"); setBusy(false); return; }
+      storagePath = path;
     }
 
-    // Cria cobrança
-    let linhaDigitavel = "";
-    let asaasBoletoId  = "";
-    try{
-      const res = await fetch(`${ASAAS_BASE}/payments`, {
-        method:"POST",
-        headers:{"Content-Type":"application/json","access_token":ASAAS_KEY},
-        body: JSON.stringify({
-          customer: asaasId,
-          billingType: "BOLETO",
-          value: parseFloat(fBoleto.valor),
-          dueDate: fBoleto.vencimento,
-          description: fBoleto.descricao||`Honorários ${fBoleto.competencia}`,
-        })
-      });
-      const pData = await res.json();
-      asaasBoletoId  = pData.id;
-      linhaDigitavel = pData.bankSlipUrl||"";
-      if(pData.errors){ showToast("Asaas: "+pData.errors[0]?.description,"err"); setBusy(false); return; }
-    } catch(e){ showToast("Erro na API Asaas. Verifique a chave.","err"); setBusy(false); return; }
-
-    // Salva no Supabase
-    await sb.from("boletos").insert({
-      usuario_id: fBoleto.cliente_id,
-      competencia: fBoleto.competencia,
-      vencimento: fBoleto.vencimento,
-      valor: parseFloat(fBoleto.valor),
-      linha_digitavel: linhaDigitavel,
-      asaas_id: asaasBoletoId,
-      status: "pendente",
+    // Salva boleto no banco
+    const{error}=await sbAdmin.from("boletos").insert({
+      usuario_id:    fBoleto.cliente_id,
+      competencia:   fBoleto.competencia,
+      vencimento:    fBoleto.vencimento,
+      valor:         parseFloat(fBoleto.valor),
+      linha_digitavel: fBoleto.linha_digitavel||null,
+      storage_path:  storagePath,
+      status:        "pendente",
     });
 
-    showToast("Boleto gerado e enviado ao cliente!");
+    if(error) showToast("Erro ao salvar boleto: "+error.message,"err");
+    else showToast("💳 Boleto disponibilizado ao cliente!");
+
     setModalNovoBoleto(false);
-    setFBoleto({cliente_id:"",competencia:"",vencimento:"",valor:"",descricao:""});
+    setFBoleto({cliente_id:"",competencia:"",vencimento:"",valor:"",linha_digitavel:"",arquivo:null});
     await loadBoletos();
+    setBusy(false);
+  };
+
+  // ── Editar cliente ────────────────────────────────────────────────────
+  const abrirEditCliente = (c)=>{
+    setFEditCliente({id:c.id, nome_empresa:c.nome_empresa||"", cnpj:c.cnpj||"", email:c.email||"", senha_nova:""});
+    setModalEditCliente(true);
+  };
+
+  const salvarEditCliente = async()=>{
+    if(!fEditCliente.nome_empresa){ showToast("Nome da empresa é obrigatório","err"); return; }
+    setBusy(true);
+
+    // Atualiza perfil
+    const{error:pe}=await sbAdmin.from("perfis").update({
+      nome_empresa: fEditCliente.nome_empresa,
+      cnpj:         fEditCliente.cnpj,
+      email:        fEditCliente.email,
+    }).eq("id", fEditCliente.id);
+    if(pe){ showToast("Erro ao atualizar perfil: "+pe.message,"err"); setBusy(false); return; }
+
+    // Atualiza senha se preenchida
+    if(fEditCliente.senha_nova){
+      if(fEditCliente.senha_nova.length < 6){
+        showToast("Senha deve ter pelo menos 6 caracteres","err"); setBusy(false); return;
+      }
+      const{error:se}=await sbAdmin.auth.admin.updateUserById(fEditCliente.id,{
+        password: fEditCliente.senha_nova
+      });
+      if(se){ showToast("Perfil salvo, mas erro na senha: "+se.message,"err"); setBusy(false); return; }
+    }
+
+    showToast("✅ Cliente atualizado com sucesso!");
+    setModalEditCliente(false);
+    await loadClientes();
     setBusy(false);
   };
 
@@ -390,11 +378,11 @@ export default function AdminApp() {
     if(fGuia.arquivo){
       const f = fGuia.arquivo;
       const path = `${fGuia.cliente_id}/${Date.now()}_${f.name}`;
-      const{error}=await sb.storage.from("documentos").upload(path,f,{upsert:false});
+      const{error}=await sbAdmin.storage.from("documentos").upload(path,f,{upsert:false});
       if(!error) storagePath = path;
     }
 
-    await sb.from("guias").insert({
+    await sbAdmin.from("guias").insert({
       usuario_id: fGuia.cliente_id,
       tipo: fGuia.tipo,
       vencimento: fGuia.vencimento,
@@ -413,27 +401,27 @@ export default function AdminApp() {
   // ── Deletar ───────────────────────────────────────────────────────────
   const deletarDoc = async(doc)=>{
     if(!window.confirm(`Excluir "${doc.nome}"?`)) return;
-    await sb.storage.from("documentos").remove([doc.storage_path]);
-    await sb.from("documentos").delete().eq("id",doc.id);
+    await sbAdmin.storage.from("documentos").remove([doc.storage_path]);
+    await sbAdmin.from("documentos").delete().eq("id",doc.id);
     setDocs(p=>p.filter(d=>d.id!==doc.id));
     showToast("Documento excluído","info");
   };
 
   const deletarBoleto = async(b)=>{
     if(!window.confirm("Excluir este boleto?")) return;
-    await sb.from("boletos").delete().eq("id",b.id);
+    await sbAdmin.from("boletos").delete().eq("id",b.id);
     setBoletos(p=>p.filter(x=>x.id!==b.id));
     showToast("Boleto excluído","info");
   };
 
   const marcarBoletoComoPago = async(b)=>{
-    await sb.from("boletos").update({status:"pago"}).eq("id",b.id);
+    await sbAdmin.from("boletos").update({status:"pago"}).eq("id",b.id);
     setBoletos(p=>p.map(x=>x.id===b.id?{...x,status:"pago"}:x));
     showToast("Boleto marcado como pago!");
   };
 
   const marcarGuiaComoPaga = async(g)=>{
-    await sb.from("guias").update({status:"pago"}).eq("id",g.id);
+    await sbAdmin.from("guias").update({status:"pago"}).eq("id",g.id);
     setGuias(p=>p.map(x=>x.id===g.id?{...x,status:"pago"}:x));
     showToast("Guia marcada como paga!");
   };
@@ -639,6 +627,9 @@ export default function AdminApp() {
                       </div>
                     </div>
                     <div style={{display:"flex",gap:8}}>
+                      <button className="btn ghost sm" onClick={()=>abrirEditCliente(c)}>
+                        ✏️ Editar
+                      </button>
                       <button className="btn green sm" onClick={()=>{setFDoc(p=>({...p,cliente_id:c.id}));setModalUploadDoc(true);}}>
                         📤 Enviar doc
                       </button>
@@ -877,12 +868,12 @@ export default function AdminApp() {
         </div>
       )}
 
-      {/* Modal: Novo Boleto */}
+      {/* Modal: Novo Boleto — Upload PDF */}
       {modalNovoBoleto&&(
         <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModalNovoBoleto(false)}>
           <div className="modal">
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
-              <div style={{fontSize:16,fontWeight:700,color:C.white}}>💳 Gerar Boleto de Mensalidade</div>
+              <div style={{fontSize:16,fontWeight:700,color:C.white}}>💳 Disponibilizar Boleto</div>
               <button className="btn ghost sm" onClick={()=>setModalNovoBoleto(false)}>✕</button>
             </div>
             <div style={{display:"flex",flexDirection:"column",gap:13}}>
@@ -900,16 +891,57 @@ export default function AdminApp() {
                 <div><label>Vencimento *</label><input className="inp" type="date" value={fBoleto.vencimento} onChange={e=>setFBoleto(p=>({...p,vencimento:e.target.value}))}/></div>
                 <div><label>Valor (R$) *</label><input className="inp" type="number" step="0.01" value={fBoleto.valor} onChange={e=>setFBoleto(p=>({...p,valor:e.target.value}))} placeholder="650.00"/></div>
               </div>
-              <div><label>Descrição</label><input className="inp" value={fBoleto.descricao} onChange={e=>setFBoleto(p=>({...p,descricao:e.target.value}))} placeholder="Honorários contábeis – Junho/2026"/></div>
-              <div style={{background:"rgba(167,139,250,.08)",border:"1px solid rgba(167,139,250,.2)",
-                           borderRadius:10,padding:"10px 14px",fontSize:12,color:"rgba(255,255,255,.6)"}}>
-                🔌 O boleto será gerado via <strong style={{color:C.white}}>Asaas</strong> e enviado automaticamente por e-mail ao cliente.
+              <div><label>Linha Digitável (opcional)</label><input className="inp" value={fBoleto.linha_digitavel} onChange={e=>setFBoleto(p=>({...p,linha_digitavel:e.target.value}))} placeholder="00190.00009 01234.560001…"/></div>
+              <div>
+                <label>PDF do Boleto (opcional)</label>
+                <div className="drag" onClick={()=>boletoFileRef.current.click()}
+                     style={{padding:"16px",borderColor:fBoleto.arquivo?"rgba(60,185,106,.5)":undefined,
+                             background:fBoleto.arquivo?"rgba(60,185,106,.06)":undefined}}>
+                  <input ref={boletoFileRef} type="file" accept=".pdf" style={{display:"none"}}
+                         onChange={e=>setFBoleto(p=>({...p,arquivo:e.target.files[0]||null}))}/>
+                  {fBoleto.arquivo?(
+                    <div style={{fontSize:13,color:C.green,fontWeight:600}}>📕 {fBoleto.arquivo.name}</div>
+                  ):(
+                    <><div style={{fontSize:20,marginBottom:4}}>📄</div>
+                    <div style={{fontSize:12,color:C.muted}}>Clique para anexar o PDF do boleto</div></>
+                  )}
+                </div>
               </div>
               <div style={{display:"flex",gap:8,marginTop:4}}>
-                <button className="btn purple lg" onClick={gerarBoleto} disabled={busy} style={{flex:1,justifyContent:"center"}}>
-                  {busy?"Gerando…":"💳 Gerar Boleto"}
+                <button className="btn blue lg" onClick={gerarBoleto} disabled={busy} style={{flex:1,justifyContent:"center"}}>
+                  {busy?"Salvando…":"💳 Disponibilizar Boleto"}
                 </button>
                 <button className="btn ghost" onClick={()=>setModalNovoBoleto(false)}>Cancelar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Editar Cliente */}
+      {modalEditCliente&&(
+        <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModalEditCliente(false)}>
+          <div className="modal">
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:20}}>
+              <div style={{fontSize:16,fontWeight:700,color:C.white}}>✏️ Editar Cliente</div>
+              <button className="btn ghost sm" onClick={()=>setModalEditCliente(false)}>✕</button>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:13}}>
+              <div><label>Nome da empresa *</label><input className="inp" value={fEditCliente.nome_empresa} onChange={e=>setFEditCliente(p=>({...p,nome_empresa:e.target.value}))} placeholder="Silva & Filhos Ltda"/></div>
+              <div><label>CNPJ</label><input className="inp" value={fEditCliente.cnpj} onChange={e=>setFEditCliente(p=>({...p,cnpj:e.target.value}))} placeholder="00.000.000/0001-00"/></div>
+              <div><label>E-mail</label><input className="inp" value={fEditCliente.email} onChange={e=>setFEditCliente(p=>({...p,email:e.target.value}))} placeholder="cliente@empresa.com"/></div>
+              <hr style={{border:"none",borderTop:`1px solid ${C.border}`}}/>
+              <div>
+                <label>Nova senha (deixe em branco para não alterar)</label>
+                <input className="inp" type="password" value={fEditCliente.senha_nova}
+                       onChange={e=>setFEditCliente(p=>({...p,senha_nova:e.target.value}))}
+                       placeholder="Mínimo 6 caracteres"/>
+              </div>
+              <div style={{display:"flex",gap:8,marginTop:4}}>
+                <button className="btn blue lg" onClick={salvarEditCliente} disabled={busy} style={{flex:1,justifyContent:"center"}}>
+                  {busy?"Salvando…":"✅ Salvar Alterações"}
+                </button>
+                <button className="btn ghost" onClick={()=>setModalEditCliente(false)}>Cancelar</button>
               </div>
             </div>
           </div>
@@ -967,6 +999,7 @@ export default function AdminApp() {
           </div>
         </div>
       )}
+
     </div>
   );
 }
