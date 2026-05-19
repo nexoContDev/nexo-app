@@ -87,31 +87,25 @@
  *   using (bucket_id='documentos' and auth.uid()::text = (storage.foldername(name))[1]);
  * create policy "deletar proprio" on storage.objects for delete
  *   using (bucket_id='documentos' and auth.uid()::text = (storage.foldername(name))[1]);
- */
 
-import { useState, useEffect, useRef, useCallback } from "react";
+
+ import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// ══════════════════════════════════════════════════
-//  ⚠️  SUBSTITUA COM SEUS DADOS DO SUPABASE
-// ══════════════════════════════════════════════════
 const SUPABASE_URL = "https://wnwlzcjlgbdcktjhsigx.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indud2x6Y2psZ2JkY2t0amhzaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1ODk1MTMsImV4cCI6MjA5NDE2NTUxM30.1mvfIXexsCmFYec6CsbjNuKCiPN5NW2ZjsbtdtcHnZc";
-// ══════════════════════════════════════════════════
+const SUPABASE_KEY = "SUA-ANON-KEY";
 
 const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── Paleta NEXO ───────────────────────────────────────────────────────────
 const C = {
-  navy:    "#0d1f3c", navyL: "#132240", navyM: "#1a2f52",
-  blue:    "#2f7fd4", blueD: "#1a5fb4",
-  green:   "#3cb96a", greenD:"#27a558",
-  white:   "#ffffff", muted: "rgba(255,255,255,0.45)",
-  border:  "rgba(255,255,255,0.08)", borderH:"rgba(255,255,255,0.18)",
-  danger:  "#f87171", warn: "#ffd080",
+  navy:"#0d1f3c", navyL:"#132240", navyM:"#1a2f52",
+  blue:"#2f7fd4", blueD:"#1a5fb4",
+  green:"#3cb96a", greenD:"#27a558",
+  white:"#ffffff", muted:"rgba(255,255,255,0.45)",
+  border:"rgba(255,255,255,0.08)", borderH:"rgba(255,255,255,0.18)",
+  danger:"#f87171", warn:"#ffd080",
 };
 
-// ── Logo SVG ──────────────────────────────────────────────────────────────
 function Logo({ size=32 }) {
   return (
     <svg width={size} height={size} viewBox="0 0 100 100" fill="none">
@@ -124,7 +118,7 @@ function Logo({ size=32 }) {
         </linearGradient>
       </defs>
       <path d="M10 10 L32 10 L58 52 L50 62 Z" fill="url(#lg1)"/>
-      <path d="M90 90 L68 90 L42 48 L50 38 Z" fill="url(#lg1)"/>
+      <path d="M90 90 L68 90 L42 48 L50 62 Z" fill="url(#lg1)"/>
       <path d="M90 10 L68 10 L42 52 L50 62 Z" fill="url(#lg2)"/>
       <path d="M10 90 L32 90 L58 48 L50 38 Z" fill="url(#lg2)"/>
       <path d="M50 38 L58 48 L50 62 L42 48 Z" fill="white" opacity="0.9"/>
@@ -132,7 +126,6 @@ function Logo({ size=32 }) {
   );
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────
 const fmtBRL  = v => v ? `R$ ${Number(v).toLocaleString("pt-BR",{minimumFractionDigits:2})}` : "—";
 const fmtDate = s => s ? new Date(s+"T12:00:00").toLocaleDateString("pt-BR") : "—";
 const fmtBytes= b => !b?"—": b<1024?b+" B": b<1048576?(b/1024).toFixed(1)+" KB":(b/1048576).toFixed(1)+" MB";
@@ -149,14 +142,15 @@ const catSt = {
   "Outros":      {bg:"rgba(255,255,255,.08)",c:"#aaa"},
 };
 
+// Mensalidade primeiro!
 const TABS = [
+  {id:"boleto",     icon:"💳", label:"Mensalidade"},
   {id:"documentos", icon:"📁", label:"Documentos"},
   {id:"guias",      icon:"📋", label:"Guias de Impostos"},
   {id:"relatorios", icon:"📊", label:"Relatórios"},
-  {id:"boleto",     icon:"💳", label:"Mensalidade"},
+  {id:"perfil",     icon:"👤", label:"Meu Perfil"},
 ];
 
-// ── CSS global ────────────────────────────────────────────────────────────
 const CSS = `
   @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
   *{box-sizing:border-box;margin:0;padding:0}
@@ -207,13 +201,18 @@ const CSS = `
   .progress{height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
   .progress-bar{height:100%;border-radius:99px;background:linear-gradient(90deg,${C.blue},${C.green});transition:width .3s}
   .sep{border:none;border-top:1px solid ${C.border};margin:16px 0}
+  .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);
+            display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+  .modal{background:${C.navyL};border:1px solid ${C.borderH};border-radius:18px;
+         padding:28px;width:100%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,.5)}
+  .modal label{display:block;color:${C.muted};font-size:11px;letter-spacing:.08em;
+               text-transform:uppercase;margin-bottom:6px;margin-top:2px}
 `;
 
-// ══════════════════════════════════════════════════════════════════════════
 export default function App() {
   const [session,    setSession]    = useState(null);
   const [booting,    setBooting]    = useState(true);
-  const [tab,        setTab]        = useState("documentos");
+  const [tab,        setTab]        = useState("boleto"); // começa em Mensalidade
 
   // auth
   const [email,      setEmail]      = useState("");
@@ -244,12 +243,18 @@ export default function App() {
   // boleto
   const [boleto,     setBoleto]     = useState(null);
   const [boletoLoad, setBoletoLoad] = useState(false);
-  const [generating, setGenerating] = useState(false);
   const [copied,     setCopied]     = useState(false);
 
-  // toast
-  const [toast,      setToast]      = useState(null);
+  // perfil / senha
+  const [senhaAtual,    setSenhaAtual]    = useState("");
+  const [senhaNova,     setSenhaNova]     = useState("");
+  const [senhaConfirm,  setSenhaConfirm]  = useState("");
+  const [senhaBusy,     setSenhaBusy]     = useState(false);
+  const [senhaMsg,      setSenhaMsg]      = useState("");
+  const [senhaErr,      setSenhaErr]      = useState("");
 
+  // toast
+  const [toast, setToast] = useState(null);
   const showToast = useCallback((msg, type="ok") => {
     setToast({msg,type});
     setTimeout(()=>setToast(null), 3200);
@@ -273,12 +278,34 @@ export default function App() {
     if(error) setAuthErr("E-mail ou senha incorretos.");
     setAuthBusy(false);
   };
+
   const doReset = async()=>{
     setAuthErr("");setAuthBusy(true);
     const{error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:window.location.href});
     if(error) setAuthErr("Erro ao enviar e-mail.");
     else setAuthMsg("Link de redefinição enviado! Verifique sua caixa.");
     setAuthBusy(false);
+  };
+
+  // ── Alterar senha ─────────────────────────────────────────────────────
+  const alterarSenha = async()=>{
+    setSenhaErr(""); setSenhaMsg("");
+    if(!senhaAtual||!senhaNova||!senhaConfirm){ setSenhaErr("Preencha todos os campos."); return; }
+    if(senhaNova !== senhaConfirm){ setSenhaErr("A nova senha e a confirmação não coincidem."); return; }
+    if(senhaNova.length < 6){ setSenhaErr("A senha deve ter pelo menos 6 caracteres."); return; }
+    setSenhaBusy(true);
+    // Reautentica para validar senha atual
+    const{error:reErr}=await sb.auth.signInWithPassword({email:session.user.email, password:senhaAtual});
+    if(reErr){ setSenhaErr("Senha atual incorreta."); setSenhaBusy(false); return; }
+    // Atualiza para nova senha
+    const{error}=await sb.auth.updateUser({password:senhaNova});
+    if(error) setSenhaErr("Erro ao alterar senha: "+error.message);
+    else{
+      setSenhaMsg("Senha alterada com sucesso!");
+      setSenhaAtual(""); setSenhaNova(""); setSenhaConfirm("");
+      showToast("Senha alterada com sucesso!");
+    }
+    setSenhaBusy(false);
   };
 
   // ── Documentos ────────────────────────────────────────────────────────
@@ -314,7 +341,7 @@ export default function App() {
   const downloadDoc = async(doc)=>{
     setDlId(doc.id);
     const{data,error}=await sb.storage.from("documentos").download(doc.storage_path);
-    if(error){showToast("Erro ao baixar arquivo","err");}
+    if(error) showToast("Erro ao baixar arquivo","err");
     else{
       const url=URL.createObjectURL(data);
       const a=document.createElement("a");a.href=url;a.download=doc.nome;a.click();
@@ -343,7 +370,6 @@ export default function App() {
   const fetchGuias = async()=>{
     setGuiasLoad(true);
     const{data}=await sb.from("guias").select("*").order("vencimento",{ascending:true});
-    // fallback mock se tabela vazia
     if(!data||data.length===0){
       setGuias([
         {id:"g1",tipo:"DAS – Simples Nacional",vencimento:"2026-05-20",valor:1240,status:"pendente",storage_path:null},
@@ -373,19 +399,19 @@ export default function App() {
     setBoletoLoad(true);
     const{data}=await sb.from("boletos").select("*").order("criado_em",{ascending:false}).limit(1);
     if(data&&data.length>0) setBoleto(data[0]);
-    else setBoleto({
-      competencia:"Maio/2026",vencimento:"2026-05-10",valor:650,
-      linha_digitavel:"00190.00009 01234.560001 23456.780000 1 99990000065000",
-      status:"pendente",
-    });
+    else setBoleto(null);
     setBoletoLoad(false);
   };
 
-  const generateBoleto = async()=>{
-    setGenerating(true);
-    await new Promise(r=>setTimeout(r,1800));
-    showToast("Boleto gerado com sucesso!");
-    setGenerating(false);
+  const downloadBoleto = async()=>{
+    if(!boleto?.storage_path){ showToast("Boleto PDF não disponível","info"); return; }
+    const{data,error}=await sb.storage.from("documentos").download(boleto.storage_path);
+    if(error) showToast("Erro ao baixar boleto","err");
+    else{
+      const url=URL.createObjectURL(data);
+      const a=document.createElement("a");a.href=url;a.download="boleto.pdf";a.click();
+      URL.revokeObjectURL(url);showToast("Boleto baixado!");
+    }
   };
 
   const copyLine = ()=>{
@@ -479,7 +505,6 @@ export default function App() {
                  backgroundImage:`radial-gradient(ellipse at 0% 0%,rgba(47,127,212,.07) 0%,transparent 50%)`}}>
       <style>{CSS}</style>
 
-      {/* Toast */}
       {toast&&(
         <div className="toast" style={{
           background: toast.type==="err"?"rgba(239,68,68,.18)":toast.type==="info"?"rgba(255,255,255,.07)":"rgba(60,185,106,.18)",
@@ -490,7 +515,7 @@ export default function App() {
         </div>
       )}
 
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <header style={{
         background:"rgba(13,31,60,.94)",backdropFilter:"blur(14px)",
         borderBottom:`1px solid ${C.border}`,padding:"0 24px",
@@ -549,10 +574,86 @@ export default function App() {
           ))}
         </div>
 
-        {/* ═══════════ DOCUMENTOS ═══════════ */}
+        {/* ═══ MENSALIDADE (BOLETO) ═══ */}
+        {tab==="boleto"&&(
+          <div className="fade">
+            <div className="card">
+              <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:22}}>
+                <div style={{width:46,height:46,borderRadius:12,background:"rgba(47,127,212,.18)",
+                             display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💳</div>
+                <div>
+                  <div style={{fontSize:17,fontWeight:700,color:C.white}}>Mensalidade de Honorários</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:2}}>
+                    {boletoLoad?"…":boleto?.competencia||"Nenhum boleto disponível"}
+                  </div>
+                </div>
+              </div>
+
+              {boletoLoad?(
+                <div style={{textAlign:"center",padding:"32px 0",color:C.muted}}>Carregando…</div>
+              ):!boleto?(
+                <div style={{textAlign:"center",padding:"48px 0",border:`1px dashed ${C.border}`,borderRadius:12}}>
+                  <div style={{fontSize:32,marginBottom:10}}>💳</div>
+                  <div style={{fontSize:13,color:C.muted}}>Nenhum boleto disponível no momento.</div>
+                  <div style={{fontSize:12,color:C.muted,marginTop:6}}>Seu contador irá disponibilizar em breve.</div>
+                </div>
+              ):(
+                <>
+                  <div style={{background:"rgba(255,255,255,.04)",borderRadius:12,
+                               border:`1px solid ${C.border}`,padding:"4px 20px",marginBottom:20}}>
+                    {[
+                      ["Vencimento", fmtDate(boleto.vencimento)],
+                      ["Valor",      fmtBRL(boleto.valor)],
+                      ["Status",     boleto.status==="pago"?"✅ Pago":"⏳ Pendente"],
+                      ["Competência",boleto.competencia||"—"],
+                    ].map(([l,v])=>(
+                      <div key={l} style={{display:"flex",justifyContent:"space-between",
+                                           padding:"13px 0",borderBottom:`1px solid ${C.border}`,fontSize:14}}>
+                        <span style={{color:C.muted}}>{l}</span>
+                        <span style={{fontWeight:600,color:C.white}}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {boleto.linha_digitavel&&(
+                    <>
+                      <div style={{fontSize:11,color:C.muted,letterSpacing:".07em",
+                                   textTransform:"uppercase",marginBottom:8}}>Linha Digitável</div>
+                      <div style={{background:"rgba(255,255,255,.04)",border:`1px dashed ${C.border}`,
+                                   borderRadius:10,padding:"14px 18px",marginBottom:18,
+                                   fontFamily:"monospace",fontSize:13,color:"rgba(255,255,255,.55)",
+                                   letterSpacing:".04em",wordBreak:"break-all",lineHeight:1.8}}>
+                        {boleto.linha_digitavel}
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+                    {boleto.storage_path&&(
+                      <button className="btn blue" onClick={downloadBoleto}
+                              style={{flex:1,padding:"14px",fontSize:14}}>
+                        📥 Baixar Boleto PDF
+                      </button>
+                    )}
+                    {boleto.linha_digitavel&&(
+                      <button className="btn ghost" onClick={copyLine}
+                              style={{flex:1,padding:"14px",fontSize:14,
+                                      background:copied?"rgba(60,185,106,.2)":"",
+                                      borderColor:copied?"rgba(60,185,106,.4)":"",
+                                      color:copied?C.green:""}}>
+                        {copied?"✓ Copiado!":"📋 Copiar Código"}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ═══ DOCUMENTOS ═══ */}
         {tab==="documentos"&&(
           <div className="fade">
-            {/* Upload */}
             <div className="card" style={{marginBottom:16}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
                            flexWrap:"wrap",gap:12,marginBottom:16}}>
@@ -578,24 +679,19 @@ export default function App() {
                        onChange={e=>handleFiles(e.target.files)}/>
                 {uploading?(
                   <div style={{padding:"8px 0"}}>
-                    <div style={{fontSize:14,color:C.white,marginBottom:10,fontWeight:600}}>
-                      Enviando… {upPct}%
-                    </div>
+                    <div style={{fontSize:14,color:C.white,marginBottom:10,fontWeight:600}}>Enviando… {upPct}%</div>
                     <div className="progress"><div className="progress-bar" style={{width:`${upPct}%`}}/></div>
                   </div>
                 ):(
                   <>
                     <div style={{fontSize:28,marginBottom:8}}>☁️</div>
-                    <div style={{fontSize:14,color:C.white,fontWeight:600,marginBottom:4}}>
-                      Clique ou arraste arquivos aqui
-                    </div>
+                    <div style={{fontSize:14,color:C.white,fontWeight:600,marginBottom:4}}>Clique ou arraste arquivos aqui</div>
                     <div style={{fontSize:12,color:C.muted}}>Máximo 50 MB por arquivo</div>
                   </>
                 )}
               </div>
             </div>
 
-            {/* Lista */}
             <div className="card">
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",
                            flexWrap:"wrap",gap:12,marginBottom:14}}>
@@ -607,8 +703,7 @@ export default function App() {
                                   borderRadius:20,padding:"2px 10px"}}>{docs.length}</span>
                   )}
                 </div>
-                <input value={search} onChange={e=>setSearch(e.target.value)}
-                       placeholder="Buscar…"
+                <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar…"
                        style={{background:"rgba(255,255,255,.06)",border:`1px solid ${C.border}`,
                                color:"#fff",borderRadius:8,padding:"7px 13px",width:200,fontSize:13}}/>
               </div>
@@ -638,13 +733,11 @@ export default function App() {
                           <div style={{minWidth:0}}>
                             <div style={{fontWeight:600,color:C.white,fontSize:14,overflow:"hidden",
                                          textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:260}}>{d.nome}</div>
-                            <div style={{fontSize:11,color:C.muted,marginTop:2}}>
-                              {fmtDate(d.criado_em)} · {fmtBytes(d.tamanho)}
-                            </div>
+                            <div style={{fontSize:11,color:C.muted,marginTop:2}}>{fmtDate(d.criado_em)} · {fmtBytes(d.tamanho)}</div>
                           </div>
                         </div>
                         <div style={{display:"flex",alignItems:"center",gap:8,flexShrink:0}}>
-                          <span style={{background:cs.bg,color:cs.c,...{borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:600}}}>
+                          <span style={{background:cs.bg,color:cs.c,borderRadius:20,padding:"3px 11px",fontSize:11,fontWeight:600}}>
                             {d.categoria}
                           </span>
                           <button className="btn green sm" onClick={()=>downloadDoc(d)} disabled={dlId===d.id}>
@@ -663,7 +756,7 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══════════ GUIAS ═══════════ */}
+        {/* ═══ GUIAS ═══ */}
         {tab==="guias"&&(
           <div className="fade" style={{display:"flex",flexDirection:"column",gap:10}}>
             {guiasLoad?(
@@ -692,23 +785,20 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══════════ RELATÓRIOS ═══════════ */}
+        {/* ═══ RELATÓRIOS ═══ */}
         {tab==="relatorios"&&(
           <div className="fade">
             <div className="card" style={{marginBottom:14}}>
               <div style={{fontSize:15,fontWeight:700,color:C.white,marginBottom:4}}>📊 Relatórios de Fechamento</div>
               <div style={{fontSize:12,color:C.muted}}>
-                Os relatórios são disponibilizados pelo seu contador mensalmente.
-                Eles ficam na aba <strong style={{color:C.white}}>Documentos</strong> com a categoria <strong style={{color:C.white}}>Relatórios</strong>.
+                Os relatórios são disponibilizados pelo seu contador mensalmente na aba <strong style={{color:C.white}}>Documentos</strong> com a categoria <strong style={{color:C.white}}>Relatórios</strong>.
               </div>
             </div>
             {docs.filter(d=>d.categoria==="Relatórios").length===0?(
               <div style={{textAlign:"center",padding:"48px 0",border:`1px dashed ${C.border}`,borderRadius:14}}>
                 <div style={{fontSize:32,marginBottom:10}}>📊</div>
                 <div style={{fontSize:14,color:C.muted,marginBottom:16}}>Nenhum relatório disponível ainda.</div>
-                <button className="btn ghost" onClick={()=>setTab("documentos")}>
-                  Ver todos os documentos
-                </button>
+                <button className="btn ghost" onClick={()=>setTab("documentos")}>Ver todos os documentos</button>
               </div>
             ):(
               <div style={{display:"flex",flexDirection:"column",gap:8}}>
@@ -719,9 +809,7 @@ export default function App() {
                                    display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📊</div>
                       <div>
                         <div style={{fontWeight:600,color:C.white,fontSize:15}}>{d.nome}</div>
-                        <div style={{fontSize:12,color:C.muted,marginTop:2}}>
-                          Disponível em: {fmtDate(d.criado_em)} · {fmtBytes(d.tamanho)}
-                        </div>
+                        <div style={{fontSize:12,color:C.muted,marginTop:2}}>{fmtDate(d.criado_em)} · {fmtBytes(d.tamanho)}</div>
                       </div>
                     </div>
                     <button className="btn green sm" onClick={()=>downloadDoc(d)} disabled={dlId===d.id}>
@@ -734,75 +822,62 @@ export default function App() {
           </div>
         )}
 
-        {/* ═══════════ BOLETO ═══════════ */}
-        {tab==="boleto"&&(
+        {/* ═══ MEU PERFIL ═══ */}
+        {tab==="perfil"&&(
           <div className="fade">
-            <div className="card">
-              <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:22}}>
-                <div style={{width:46,height:46,borderRadius:12,background:"rgba(47,127,212,.18)",
-                             display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>💳</div>
-                <div>
-                  <div style={{fontSize:17,fontWeight:700,color:C.white}}>Mensalidade de Honorários</div>
-                  <div style={{fontSize:12,color:C.muted,marginTop:2}}>
-                    Competência: {boletoLoad?"…":boleto?.competencia}
-                  </div>
+            {/* Info da conta */}
+            <div className="card" style={{marginBottom:16}}>
+              <div style={{fontSize:15,fontWeight:700,color:C.white,marginBottom:16}}>👤 Minha Conta</div>
+              <div style={{background:"rgba(255,255,255,.04)",borderRadius:12,border:`1px solid ${C.border}`,padding:"4px 20px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"13px 0",
+                             borderBottom:`1px solid ${C.border}`,fontSize:14}}>
+                  <span style={{color:C.muted}}>E-mail</span>
+                  <span style={{fontWeight:600,color:C.white}}>{session.user.email}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",padding:"13px 0",fontSize:14}}>
+                  <span style={{color:C.muted}}>Membro desde</span>
+                  <span style={{fontWeight:600,color:C.white}}>{fmtDate(session.user.created_at?.split("T")[0])}</span>
                 </div>
               </div>
+            </div>
 
-              {boletoLoad?(
-                <div style={{textAlign:"center",padding:"32px 0",color:C.muted}}>Carregando…</div>
-              ):boleto&&(
-                <>
-                  {/* Detalhes */}
-                  <div style={{background:"rgba(255,255,255,.04)",borderRadius:12,
-                               border:`1px solid ${C.border}`,padding:"4px 20px",marginBottom:20}}>
-                    {[
-                      ["Vencimento", fmtDate(boleto.vencimento)],
-                      ["Valor",      fmtBRL(boleto.valor)],
-                      ["Status",     boleto.status==="pago"?"✅ Pago":"⏳ Pendente"],
-                      ["Competência",boleto.competencia],
-                    ].map(([l,v])=>(
-                      <div key={l} style={{display:"flex",justifyContent:"space-between",
-                                           padding:"13px 0",borderBottom:`1px solid ${C.border}`,fontSize:14}}>
-                        <span style={{color:C.muted}}>{l}</span>
-                        <span style={{fontWeight:600,color:C.white}}>{v}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Linha digitável */}
-                  <div style={{fontSize:11,color:C.muted,letterSpacing:".07em",
-                               textTransform:"uppercase",marginBottom:8}}>Linha Digitável</div>
-                  <div style={{background:"rgba(255,255,255,.04)",border:`1px dashed ${C.border}`,
-                               borderRadius:10,padding:"14px 18px",marginBottom:18,
-                               fontFamily:"monospace",fontSize:13,color:"rgba(255,255,255,.55)",
-                               letterSpacing:".04em",wordBreak:"break-all",lineHeight:1.8}}>
-                    {boleto.linha_digitavel}
-                  </div>
-
-                  <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-                    <button className="btn blue" onClick={generateBoleto} disabled={generating}
-                            style={{flex:1,padding:"14px",fontSize:14}}>
-                      {generating?(
-                        <span>⏳ Gerando…</span>
-                      ):"📥 Gerar Boleto PDF"}
-                    </button>
-                    <button className="btn ghost" onClick={copyLine}
-                            style={{flex:1,padding:"14px",fontSize:14,
-                                    background:copied?"rgba(60,185,106,.2)":"",
-                                    borderColor:copied?"rgba(60,185,106,.4)":"",
-                                    color:copied?C.green:""}}>
-                      {copied?"✓ Copiado!":"📋 Copiar Código"}
-                    </button>
-                  </div>
-
-                  {generating&&(
-                    <div style={{marginTop:14}}>
-                      <div className="progress"><div className="progress-bar" style={{width:"75%"}}/></div>
-                    </div>
-                  )}
-                </>
-              )}
+            {/* Alterar senha */}
+            <div className="card">
+              <div style={{fontSize:15,fontWeight:700,color:C.white,marginBottom:4}}>🔐 Alterar Senha</div>
+              <div style={{fontSize:12,color:C.muted,marginBottom:18}}>
+                Por segurança, confirme sua senha atual antes de criar uma nova.
+              </div>
+              <div style={{display:"flex",flexDirection:"column",gap:13}}>
+                <div>
+                  <label style={{color:C.muted,fontSize:11,letterSpacing:".08em",textTransform:"uppercase",display:"block",marginBottom:6}}>
+                    Senha atual
+                  </label>
+                  <input className="inp" type="password" value={senhaAtual}
+                         onChange={e=>setSenhaAtual(e.target.value)} placeholder="••••••••"/>
+                </div>
+                <div>
+                  <label style={{color:C.muted,fontSize:11,letterSpacing:".08em",textTransform:"uppercase",display:"block",marginBottom:6}}>
+                    Nova senha
+                  </label>
+                  <input className="inp" type="password" value={senhaNova}
+                         onChange={e=>setSenhaNova(e.target.value)} placeholder="Mínimo 6 caracteres"/>
+                </div>
+                <div>
+                  <label style={{color:C.muted,fontSize:11,letterSpacing:".08em",textTransform:"uppercase",display:"block",marginBottom:6}}>
+                    Confirmar nova senha
+                  </label>
+                  <input className="inp" type="password" value={senhaConfirm}
+                         onChange={e=>setSenhaConfirm(e.target.value)}
+                         onKeyDown={e=>e.key==="Enter"&&alterarSenha()}
+                         placeholder="Repita a nova senha"/>
+                </div>
+                {senhaErr&&<p style={{color:C.danger,fontSize:13}}>⚠️ {senhaErr}</p>}
+                {senhaMsg&&<p style={{color:C.green,fontSize:13}}>✅ {senhaMsg}</p>}
+                <button className="btn blue" onClick={alterarSenha} disabled={senhaBusy}
+                        style={{padding:"13px",fontSize:14,marginTop:4}}>
+                  {senhaBusy?"Alterando…":"🔐 Alterar Senha"}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -814,3 +889,6 @@ export default function App() {
     </div>
   );
 }
+
+ */
+
