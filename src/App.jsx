@@ -2,6 +2,7 @@
  * NEXO Portal do Cliente - Versao Completa
  * Configure SUPABASE_URL e SUPABASE_KEY com seus dados
  */
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = "https://wnwlzcjlgbdcktjhsigx.supabase.co";
