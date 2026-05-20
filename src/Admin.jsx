@@ -30,18 +30,18 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createClient } from "@supabase/supabase-js";
 
-// ══════════════════════════════════════════════════
+// 
 const SUPABASE_URL          = "https://wnwlzcjlgbdcktjhsigx.supabase.co";
 const SUPABASE_KEY          = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indud2x6Y2psZ2JkY2t0amhzaWd4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg1ODk1MTMsImV4cCI6MjA5NDE2NTUxM30.1mvfIXexsCmFYec6CsbjNuKCiPN5NW2ZjsbtdtcHnZc";
 const SUPABASE_SERVICE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indud2x6Y2psZ2JkY2t0amhzaWd4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODU4OTUxMywiZXhwIjoyMDk0MTY1NTEzfQ.rhSPyjGeTsnDv1uWIqpb9Cd9_dXTQodiG87Z8Jug60A"; // Project Settings → API → service_role
 const ASAAS_KEY             = "SUA-CHAVE-ASAAS";     // $aact_... (sandbox) ou $aas_... (produção)
 const ASAAS_BASE            = "https://sandbox.asaas.com/api/v3"; // troque por api.asaas.com em produção
-// ══════════════════════════════════════════════════
+// 
 
 const sb      = createClient(SUPABASE_URL, SUPABASE_KEY);
 const sbAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-// ── Paleta NEXO ───────────────────────────────────
+//  Paleta NEXO 
 const C = {
   navy:"#0d1f3c", navyL:"#132240", navyM:"#1a2f52",
   blue:"#2f7fd4", blueD:"#1a5fb4",
@@ -146,7 +146,7 @@ const CSS = `
   ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:2px}
 `;
 
-// ══════════════════════════════════════════════════════════════════════════
+// 
 export default function AdminApp() {
   const [session,   setSession]   = useState(null);
   const [booting,   setBooting]   = useState(true);
@@ -192,7 +192,7 @@ export default function AdminApp() {
     setToast({msg,type}); setTimeout(()=>setToast(null), 3500);
   },[]);
 
-  // ── Auth ──────────────────────────────────────────────────────────────
+  //  Auth 
   useEffect(()=>{
     sb.auth.getSession().then(({data})=>{setSession(data.session);setBooting(false)});
     const {data:{subscription}} = sb.auth.onAuthStateChange((_,s)=>setSession(s));
@@ -208,7 +208,7 @@ export default function AdminApp() {
     setAuthBusy(false);
   };
 
-  // ── Load all data ─────────────────────────────────────────────────────
+  //  Load all data 
   const loadAll = async()=>{
     setLoading(true);
     await Promise.all([loadClientes(), loadDocs(), loadBoletos(), loadGuias()]);
@@ -216,33 +216,33 @@ export default function AdminApp() {
   };
 
   const loadClientes = async()=>{
-    const{data,error}=await sbAdmin.from("perfis").select("*").order("criado_em",{ascending:false});
+    const{data,error}=await sb.from("perfis").select("*").order("criado_em",{ascending:false});
     if(data && data.length > 0) setClientes(data);
     else if(error) console.error("Erro loadClientes:", error?.message);
     else setClientes([]);
   };
 
   const loadDocs = async()=>{
-    const{data}=await sbAdmin.from("documentos").select("*").order("criado_em",{ascending:false});
+    const{data}=await sb.from("documentos").select("*").order("criado_em",{ascending:false});
     if(data) setDocs(data);
   };
 
   const loadBoletos = async()=>{
-    const{data}=await sbAdmin.from("boletos").select("*").order("criado_em",{ascending:false});
+    const{data}=await sb.from("boletos").select("*").order("criado_em",{ascending:false});
     if(data) setBoletos(data);
   };
 
   const loadGuias = async()=>{
-    const{data}=await sbAdmin.from("guias").select("*").order("criado_em",{ascending:false});
+    const{data}=await sb.from("guias").select("*").order("criado_em",{ascending:false});
     if(data) setGuias(data);
   };
 
-  // ── Criar cliente ─────────────────────────────────────────────────────
+  //  Criar cliente 
   const criarCliente = async()=>{
     if(!fCliente.email||!fCliente.senha){ showToast("Preencha e-mail e senha","err"); return; }
     setBusy(true);
 
-    // 1. Cria usuário usando service_role (e-mail já confirmado automaticamente)
+    // 1. Cria usurio usando service_role (e-mail j confirmado automaticamente)
     const{data,error}=await sbAdmin.auth.admin.createUser({
       email: fCliente.email,
       password: fCliente.senha,
@@ -254,8 +254,8 @@ export default function AdminApp() {
       setBusy(false); return;
     }
 
-    // 2. Salva perfil com o UUID real do usuário criado
-    const{error:pe}=await sbAdmin.from("perfis").insert({
+    // 2. Salva perfil com o UUID real do usurio criado
+    const{error:pe}=await sb.from("perfis").insert({
       id: data.user.id,
       nome_empresa: fCliente.nome||"",
       cnpj: fCliente.cnpj||"",
@@ -271,22 +271,32 @@ export default function AdminApp() {
     setBusy(false);
   };
 
-  // ── Upload documento ──────────────────────────────────────────────────
+  //  Upload documento 
+  // Sanitiza nome do arquivo removendo caracteres especiais
+  const sanitizeFileName = (name) => {
+    return name
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // remove acentos
+      .replace(/[^a-zA-Z0-9._-]/g, "_")                   // substitui especiais por _
+      .replace(/_+/g, "_")                                  // remove __ duplos
+      .toLowerCase();
+  };
+
   const uploadDocumento = async()=>{
     if(!fDoc.arquivo||!fDoc.cliente_id){ showToast("Selecione o cliente e o arquivo","err"); return; }
     setUploading(true); setUpPct(0);
     const f = fDoc.arquivo;
-    const path = `${fDoc.cliente_id}/${Date.now()}_${f.name}`;
+    const safeName = sanitizeFileName(f.name);
+    const path = `${fDoc.cliente_id}/${Date.now()}_${safeName}`;
     const iv = setInterval(()=>setUpPct(p=>Math.min(p+12,88)),200);
-    const{error:se}=await sbAdmin.storage.from("documentos").upload(path,f,{upsert:false});
+    const{error:se}=await sb.storage.from("documentos").upload(path,f,{upsert:false});
     clearInterval(iv);
     if(se){ showToast("Erro no upload: "+se.message,"err"); setUploading(false); return; }
-    const{error:de}=await sbAdmin.from("documentos").insert({
-      nome: f.name, categoria: fDoc.categoria,
+    const{error:de}=await sb.from("documentos").insert({
+      nome: f.name, categoria: fDoc.categoria,  // nome original para exibio
       storage_path: path, tamanho: f.size,
       usuario_id: fDoc.cliente_id,
     });
-    if(de){ showToast("Erro ao salvar","err"); }
+    if(de){ showToast("Erro ao salvar: "+de.message,"err"); console.error("Insert erro:", de); }
     else { showToast(`${f.name} enviado ao cliente!`); }
     setUpPct(100);
     setTimeout(()=>{setUploading(false);setUpPct(0);},600);
@@ -295,7 +305,7 @@ export default function AdminApp() {
     await loadDocs();
   };
 
-  // ── Enviar boleto PDF ─────────────────────────────────────────────────
+  //  Enviar boleto PDF 
   const gerarBoleto = async()=>{
     if(!fBoleto.cliente_id||!fBoleto.valor||!fBoleto.vencimento){
       showToast("Preencha todos os campos obrigatórios","err"); return;
@@ -306,14 +316,15 @@ export default function AdminApp() {
     // Upload do PDF se fornecido
     if(fBoleto.arquivo){
       const f = fBoleto.arquivo;
-      const path = `${fBoleto.cliente_id}/boletos/${Date.now()}_${f.name}`;
-      const{error:se}=await sbAdmin.storage.from("documentos").upload(path,f,{upsert:false});
+      const safeName = sanitizeFileName(f.name);
+      const path = `${fBoleto.cliente_id}/boletos/${Date.now()}_${safeName}`;
+      const{error:se}=await sb.storage.from("documentos").upload(path,f,{upsert:false});
       if(se){ showToast("Erro no upload do PDF: "+se.message,"err"); setBusy(false); return; }
       storagePath = path;
     }
 
     // Salva boleto no banco
-    const{error}=await sbAdmin.from("boletos").insert({
+    const{error}=await sb.from("boletos").insert({
       usuario_id:    fBoleto.cliente_id,
       competencia:   fBoleto.competencia,
       vencimento:    fBoleto.vencimento,
@@ -332,7 +343,7 @@ export default function AdminApp() {
     setBusy(false);
   };
 
-  // ── Editar cliente ────────────────────────────────────────────────────
+  //  Editar cliente 
   const abrirEditCliente = (c)=>{
     setFEditCliente({id:c.id, nome_empresa:c.nome_empresa||"", cnpj:c.cnpj||"", email:c.email||"", senha_nova:""});
     setModalEditCliente(true);
@@ -343,7 +354,7 @@ export default function AdminApp() {
     setBusy(true);
 
     // Atualiza perfil
-    const{error:pe}=await sbAdmin.from("perfis").update({
+    const{error:pe}=await sb.from("perfis").update({
       nome_empresa: fEditCliente.nome_empresa,
       cnpj:         fEditCliente.cnpj,
       email:        fEditCliente.email,
@@ -367,7 +378,7 @@ export default function AdminApp() {
     setBusy(false);
   };
 
-  // ── Adicionar guia ────────────────────────────────────────────────────
+  //  Adicionar guia 
   const adicionarGuia = async()=>{
     if(!fGuia.cliente_id||!fGuia.valor||!fGuia.vencimento){
       showToast("Preencha todos os campos","err"); return;
@@ -377,12 +388,13 @@ export default function AdminApp() {
 
     if(fGuia.arquivo){
       const f = fGuia.arquivo;
-      const path = `${fGuia.cliente_id}/${Date.now()}_${f.name}`;
-      const{error}=await sbAdmin.storage.from("documentos").upload(path,f,{upsert:false});
+      const safeName = sanitizeFileName(f.name);
+      const path = `${fGuia.cliente_id}/${Date.now()}_${safeName}`;
+      const{error}=await sb.storage.from("documentos").upload(path,f,{upsert:false});
       if(!error) storagePath = path;
     }
 
-    await sbAdmin.from("guias").insert({
+    const{error:ge}=await sb.from("guias").insert({
       usuario_id: fGuia.cliente_id,
       tipo: fGuia.tipo,
       vencimento: fGuia.vencimento,
@@ -391,6 +403,7 @@ export default function AdminApp() {
       storage_path: storagePath,
     });
 
+    if(ge){ showToast("Erro ao salvar guia: "+ge.message,"err"); console.error("Guia erro:", ge); setBusy(false); return; }
     showToast("Guia adicionada!");
     setModalNovaGuia(false);
     setFGuia({cliente_id:"",tipo:"DAS – Simples Nacional",vencimento:"",valor:"",arquivo:null});
@@ -398,35 +411,35 @@ export default function AdminApp() {
     setBusy(false);
   };
 
-  // ── Deletar ───────────────────────────────────────────────────────────
+  //  Deletar 
   const deletarDoc = async(doc)=>{
     if(!window.confirm(`Excluir "${doc.nome}"?`)) return;
-    await sbAdmin.storage.from("documentos").remove([doc.storage_path]);
-    await sbAdmin.from("documentos").delete().eq("id",doc.id);
+    await sb.storage.from("documentos").remove([doc.storage_path]);
+    await sb.from("documentos").delete().eq("id",doc.id);
     setDocs(p=>p.filter(d=>d.id!==doc.id));
     showToast("Documento excluído","info");
   };
 
   const deletarBoleto = async(b)=>{
     if(!window.confirm("Excluir este boleto?")) return;
-    await sbAdmin.from("boletos").delete().eq("id",b.id);
+    await sb.from("boletos").delete().eq("id",b.id);
     setBoletos(p=>p.filter(x=>x.id!==b.id));
     showToast("Boleto excluído","info");
   };
 
   const marcarBoletoComoPago = async(b)=>{
-    await sbAdmin.from("boletos").update({status:"pago"}).eq("id",b.id);
+    await sb.from("boletos").update({status:"pago"}).eq("id",b.id);
     setBoletos(p=>p.map(x=>x.id===b.id?{...x,status:"pago"}:x));
     showToast("Boleto marcado como pago!");
   };
 
   const marcarGuiaComoPaga = async(g)=>{
-    await sbAdmin.from("guias").update({status:"pago"}).eq("id",g.id);
+    await sb.from("guias").update({status:"pago"}).eq("id",g.id);
     setGuias(p=>p.map(x=>x.id===g.id?{...x,status:"pago"}:x));
     showToast("Guia marcada como paga!");
   };
 
-  // ── Stats ─────────────────────────────────────────────────────────────
+  //  Stats 
   const stats = {
     clientes: clientes.length,
     docs: docs.length,
@@ -435,7 +448,7 @@ export default function AdminApp() {
     guiasPendentes: guias.filter(g=>g.status==="pendente").length,
   };
 
-  // ─────────────────────────────────────────────────────────────────────
+  // 
   if(booting) return(
     <div style={{minHeight:"100vh",background:C.navy,display:"flex",alignItems:"center",justifyContent:"center"}}>
       <style>{CSS}</style>
